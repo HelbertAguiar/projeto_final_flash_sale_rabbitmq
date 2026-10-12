@@ -1,0 +1,47 @@
+services:
+  redis:
+    image: redis:7.4-alpine
+    ports:
+      - "127.0.0.1:6379:6379"
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+
+  rabbitmq:
+    image: rabbitmq:4-management
+    ports:
+      - "127.0.0.1:5672:5672"
+      - "127.0.0.1:15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: flashsale
+      RABBITMQ_DEFAULT_PASS: flashsale
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+
+  checkout-db:
+    image: postgres:17-alpine
+    ports:
+      - "127.0.0.1:5433:5432"
+    environment:
+      POSTGRES_DB: checkout
+      POSTGRES_USER: checkout
+      POSTGRES_PASSWORD: checkout
+    volumes:
+      - checkout-data:/var/lib/postgresql/data
+
+  processor-db:
+    image: postgres:17-alpine
+    ports:
+      - "127.0.0.1:5434:5432"
+    environment:
+      POSTGRES_DB: processor
+      POSTGRES_USER: processor
+      POSTGRES_PASSWORD: processor
+    volumes:
+      - processor-data:/var/lib/postgresql/data
+
+volumes:
+  redis-data:
+  rabbitmq-data:
+  checkout-data:
+  processor-data:
