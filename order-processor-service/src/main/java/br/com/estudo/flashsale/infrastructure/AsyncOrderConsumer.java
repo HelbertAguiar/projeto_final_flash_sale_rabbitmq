@@ -13,7 +13,9 @@ public class AsyncOrderConsumer {
  @Inject OrderEventQueue queue;
  @Inject OrderProcessingService service;
  private ExecutorService executor;
+ @org.eclipse.microprofile.config.inject.ConfigProperty(name="flashsale.real") boolean real;
  void start(@Observes StartupEvent event) {
+  if (real) return;
   executor = Executors.newSingleThreadExecutor(Thread.ofPlatform().name("order-created-consumer").factory());
   executor.submit(() -> {
    while (!Thread.currentThread().isInterrupted()) {
@@ -28,6 +30,7 @@ public class AsyncOrderConsumer {
   });
  }
  void stop(@Observes ShutdownEvent event) {
+  if (executor == null) return;
   executor.shutdownNow();
   try {
    if (!executor.awaitTermination(5, TimeUnit.SECONDS))

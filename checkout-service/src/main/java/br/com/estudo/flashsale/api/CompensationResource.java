@@ -9,7 +9,9 @@ import jakarta.ws.rs.core.Response;
 @Consumes("application/json") @Produces("application/json")
 public class CompensationResource {
  @Inject ReservationService reservations;
+ @org.eclipse.microprofile.config.inject.ConfigProperty(name="flashsale.real") boolean real;
  @POST public Response receive(OrderCompensationEvent event) {
+   if (real) throw new NotFoundException();
    reservations.compensate(event); return Response.noContent().build();
  }
 }

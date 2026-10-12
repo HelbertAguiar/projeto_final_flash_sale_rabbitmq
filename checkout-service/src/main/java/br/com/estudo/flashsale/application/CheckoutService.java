@@ -62,7 +62,7 @@ public class CheckoutService {
         return new CreateOrderResponse(pedidoId, "PROCESSING", requestedAt);
     }
 
-    private void validate(CreateOrderRequest request) {
+    public static void validate(CreateOrderRequest request) {
         List<String> invalidFields = new ArrayList<>();
         if (request == null || request.produtoId() == null || request.produtoId().isBlank()) {
             invalidFields.add("produto_id é obrigatório");

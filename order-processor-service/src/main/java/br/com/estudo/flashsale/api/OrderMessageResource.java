@@ -9,7 +9,9 @@ import java.util.logging.Logger;
 @Path("/internal/mock/messages/order-created") @Consumes("application/json")
 public class OrderMessageResource {
  @Inject OrderEventQueue queue;
+ @org.eclipse.microprofile.config.inject.ConfigProperty(name="flashsale.real") boolean real;
  @POST public Response receive(OrderCreatedEvent event) {
+  if (real) throw new NotFoundException();
   if (event == null || event.pedidoId() == null || event.produtoId() == null || event.produtoId().isBlank()
     || event.quantidade() <= 0 || event.clienteCpf() == null || event.clienteCpf().isBlank()
     || event.dataHoraCriacao() == null) throw new BadRequestException("Evento order-created inválido");

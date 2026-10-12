@@ -10,10 +10,13 @@ import java.util.*;
 public class MockInspectionResource {
  @Inject StockRepository stock;
  @Inject ReservationService reservations;
+ @org.eclipse.microprofile.config.inject.ConfigProperty(name="flashsale.real") boolean real;
  @GET @Path("/stock/{product}") public Map<String,Integer> stock(@PathParam("product") String product) {
+  if (real) throw new NotFoundException();
   return Map.of("disponivel", stock.available(product));
  }
  @GET @Path("/reservations/{id}") public Map<String,Object> reservation(@PathParam("id") UUID id) {
+  if (real) throw new NotFoundException();
   return reservations.result(id);
  }
 }

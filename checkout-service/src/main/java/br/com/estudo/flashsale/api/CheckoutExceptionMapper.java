@@ -11,6 +11,10 @@ import jakarta.ws.rs.ext.Provider;
 public class CheckoutExceptionMapper implements ExceptionMapper<RuntimeException> {
     @Override
     public Response toResponse(RuntimeException exception) {
+        if (exception instanceof br.com.estudo.flashsale.application.RealCheckoutService.PendingReservationException pending) {
+            return Response.status(503).entity(java.util.Map.of("pedido_id", pending.pedidoId,
+                "mensagem", "Reserva pendente de recuperação; consulte este pedido antes de repetir a compra")).build();
+        }
         int status;
         String message;
         if (exception instanceof InvalidOrderException) {
@@ -24,7 +28,7 @@ public class CheckoutExceptionMapper implements ExceptionMapper<RuntimeException
             message = exception.getMessage();
         } else if (exception instanceof jakarta.ws.rs.WebApplicationException httpError) {
             status = httpError.getResponse().getStatus();
-            message = "Requisição HTTP rejeitada";
+            message = status == 404 ? "Pedido não encontrado" : "Requisição HTTP rejeitada";
         } else {
             status = 500;
             message = "Erro interno ao criar pedido";

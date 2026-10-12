@@ -12,7 +12,9 @@ import java.util.UUID;
 public class MockOrderResource {
  @Inject OrderRepository repository;
  @Inject OrderProcessingService service;
+ @org.eclipse.microprofile.config.inject.ConfigProperty(name="flashsale.real") boolean real;
  @GET @Path("/{id}") public Order find(@PathParam("id") UUID id) {
+  if (real) throw new NotFoundException();
   return repository.find(id).orElseThrow(NotFoundException::new);
  }
  @POST @Path("/{id}/retry-compensation") public Response retry(@PathParam("id") UUID id) {

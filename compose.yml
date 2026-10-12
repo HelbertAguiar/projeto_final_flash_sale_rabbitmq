@@ -2,43 +2,128 @@ services:
   redis:
     image: redis:7.4-alpine
     ports:
-      - "127.0.0.1:6379:6379"
-    command: ["redis-server", "--appendonly", "yes"]
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
+    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "always", "--maxmemory-policy", "noeviction"]
     volumes:
       - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
 
   rabbitmq:
     image: rabbitmq:4-management
+    hostname: rabbitmq
     ports:
-      - "127.0.0.1:5672:5672"
-      - "127.0.0.1:15672:15672"
+      - "127.0.0.1:${RABBITMQ_PORT:-5672}:5672"
+      - "127.0.0.1:${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
     environment:
-      RABBITMQ_DEFAULT_USER: flashsale
-      RABBITMQ_DEFAULT_PASS: flashsale
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USERNAME:-flashsale}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-flashsale}
+      RABBITMQ_DEFAULT_VHOST: /flashsale
     volumes:
       - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
 
   checkout-db:
     image: postgres:17-alpine
     ports:
-      - "127.0.0.1:5433:5432"
+      - "127.0.0.1:${CHECKOUT_DB_PORT:-5433}:5432"
     environment:
       POSTGRES_DB: checkout
       POSTGRES_USER: checkout
-      POSTGRES_PASSWORD: checkout
+      POSTGRES_PASSWORD: ${CHECKOUT_DB_PASSWORD:-checkout}
     volumes:
       - checkout-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U checkout -d checkout"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
 
   processor-db:
     image: postgres:17-alpine
     ports:
-      - "127.0.0.1:5434:5432"
+      - "127.0.0.1:${PROCESSOR_DB_PORT:-5434}:5432"
     environment:
       POSTGRES_DB: processor
       POSTGRES_USER: processor
-      POSTGRES_PASSWORD: processor
+      POSTGRES_PASSWORD: ${PROCESSOR_DB_PASSWORD:-processor}
     volumes:
       - processor-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U processor -d processor"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis-seed:
+    image: redis:7.4-alpine
+    depends_on:
+      redis:
+        condition: service_healthy
+    # SET NX nunca repõe estoque consumido após um reinício.
+    entrypoint: ["sh", "-ec"]
+    command:
+      - 'redis-cli -h redis SET stock:PROD-001 10 NX; redis-cli -h redis SET stock:PROD-002 0 NX'
+
+  checkout-service:
+    build: ./checkout-service
+    ports:
+      - "127.0.0.1:${CHECKOUT_PORT:-8080}:8080"
+    environment:
+      QUARKUS_PROFILE: real
+      QUARKUS_DATASOURCE_JDBC_URL: jdbc:postgresql://checkout-db:5432/checkout
+      QUARKUS_DATASOURCE_PASSWORD: ${CHECKOUT_DB_PASSWORD:-checkout}
+      QUARKUS_REDIS_HOSTS: redis://redis:6379
+      QUARKUS_REST_CLIENT_PROCESSOR_URL: http://order-processor-service:8081
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_USERNAME: ${RABBITMQ_USERNAME:-flashsale}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-flashsale}
+    depends_on:
+      redis-seed:
+        condition: service_completed_successfully
+      rabbitmq:
+        condition: service_healthy
+      checkout-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://localhost:8080/health/ready"]
+      interval: 5s
+      timeout: 10s
+      start_period: 30s
+      retries: 20
+    stop_grace_period: 20s
+
+  order-processor-service:
+    build: ./order-processor-service
+    ports:
+      - "127.0.0.1:${PROCESSOR_PORT:-8081}:8081"
+    environment:
+      QUARKUS_PROFILE: real
+      QUARKUS_DATASOURCE_JDBC_URL: jdbc:postgresql://processor-db:5432/processor
+      QUARKUS_DATASOURCE_PASSWORD: ${PROCESSOR_DB_PASSWORD:-processor}
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_USERNAME: ${RABBITMQ_USERNAME:-flashsale}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-flashsale}
+      PROCESSOR_MOCK_FAILURE_MODE: ${PROCESSOR_FAILURE_MODE:-never}
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      processor-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://localhost:8081/health/ready"]
+      interval: 5s
+      timeout: 10s
+      start_period: 30s
+      retries: 20
+    stop_grace_period: 20s
 
 volumes:
   redis-data:
