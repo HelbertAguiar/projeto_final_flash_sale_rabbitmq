@@ -22,6 +22,9 @@ public class CheckoutExceptionMapper implements ExceptionMapper<RuntimeException
         } else if (exception instanceof PublicationFailedException) {
             status = 503;
             message = exception.getMessage();
+        } else if (exception instanceof jakarta.ws.rs.WebApplicationException httpError) {
+            status = httpError.getResponse().getStatus();
+            message = "Requisição HTTP rejeitada";
         } else {
             status = 500;
             message = "Erro interno ao criar pedido";

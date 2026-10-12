@@ -24,8 +24,15 @@ public class CheckoutService {
     private final StockRepository stockRepository;
     private final OrderEventPublisher eventPublisher;
 
-    @Inject
+    private final ReservationService reservations;
+
     public CheckoutService(StockRepository stockRepository, OrderEventPublisher eventPublisher) {
+        this(stockRepository, eventPublisher, new ReservationService(stockRepository));
+    }
+
+    @Inject
+    public CheckoutService(StockRepository stockRepository, OrderEventPublisher eventPublisher, ReservationService reservations) {
+        this.reservations = reservations;
         this.stockRepository = stockRepository;
         this.eventPublisher = eventPublisher;
     }
@@ -43,10 +50,11 @@ public class CheckoutService {
         OrderCreatedEvent event = new OrderCreatedEvent(pedidoId, request.produtoId(),
                 request.quantidade(), request.clienteCpf(), request.clienteNome(), requestedAt);
 
+        reservations.register(event);
         try {
             eventPublisher.publish(event);
         } catch (RuntimeException publicationFailure) {
-            stockRepository.restore(request.produtoId(), request.quantidade());
+            reservations.restore(pedidoId, request.produtoId(), request.quantidade());
             // A causa pode conter dados pessoais em adaptadores futuros; registrar só dados seguros.
             LOG.severe("Falha ao publicar pedido " + pedidoId + " para o produto " + request.produtoId());
             throw new PublicationFailedException(publicationFailure);

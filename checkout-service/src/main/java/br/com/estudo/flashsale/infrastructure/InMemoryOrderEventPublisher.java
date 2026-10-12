@@ -7,7 +7,9 @@ import java.util.List;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+@jakarta.enterprise.inject.Typed(InMemoryOrderEventPublisher.class)
 @ApplicationScoped
+
 public class InMemoryOrderEventPublisher implements OrderEventPublisher {
     public static final String QUEUE_NAME = "order-created";
 
