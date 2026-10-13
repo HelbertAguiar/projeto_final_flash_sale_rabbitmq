@@ -4,7 +4,11 @@
 # Log file
 *.log
 .env
+.agents/
+.codex/
 .run/
+.idea/
+.vscode/
 
 # BlueJ files
 *.ctxt
