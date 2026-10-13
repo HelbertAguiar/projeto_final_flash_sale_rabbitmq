@@ -19,8 +19,13 @@ public class OrderResource {
     @Inject br.com.estudo.flashsale.application.RealCheckoutService realCheckout;
     @org.eclipse.microprofile.config.inject.ConfigProperty(name="flashsale.real") boolean real;
 
+    @Inject br.com.estudo.flashsale.application.DemoMaintenance maintenance;
+
     @POST
     public Response createOrder(CreateOrderRequest request) {
-        return Response.accepted(real ? realCheckout.createOrder(request) : checkoutService.createOrder(request)).build();
+        maintenance.requests().lock();
+        try {
+            return Response.accepted(real ? realCheckout.createOrder(request) : checkoutService.createOrder(request)).build();
+        } finally { maintenance.requests().unlock(); }
     }
 }

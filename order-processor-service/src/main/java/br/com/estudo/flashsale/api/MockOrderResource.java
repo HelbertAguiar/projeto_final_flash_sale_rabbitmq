@@ -8,7 +8,7 @@ import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.Response;
 import java.util.UUID;
 @Path("/internal/mock/orders") @Produces("application/json")
-@io.quarkus.arc.profile.IfBuildProfile(anyOf = {"dev", "test"})
+@io.quarkus.arc.profile.IfBuildProfile(anyOf = {"dev", "test", "mock"})
 public class MockOrderResource {
  @Inject OrderRepository repository;
  @Inject OrderProcessingService service;

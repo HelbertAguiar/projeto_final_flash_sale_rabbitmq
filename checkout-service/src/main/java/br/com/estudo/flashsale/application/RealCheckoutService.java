@@ -72,6 +72,7 @@ public class RealCheckoutService {
                     try (var row = select.executeQuery()) {
                         if (row.next() && row.getString("state").equals("READY")) {
                             broker.publish("order-created", row.getString("payload").getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                            java.util.logging.Logger.getLogger(getClass().getName()).info("event=published queue=order-created pedido_id=" + id);
                             try (var update = connection.prepareStatement("UPDATE checkout_outbox SET state='SENT' WHERE pedido_id=?")) {
                                 update.setObject(1, id); update.executeUpdate();
                             }
@@ -87,6 +88,7 @@ public class RealCheckoutService {
         try {
             var event = mapper.readValue(body, OrderCompensationEvent.class);
             stock.compensate(event);
+            java.util.logging.Logger.getLogger(getClass().getName()).info("event=compensated queue=order-compensation pedido_id=" + event.pedidoId());
             try (var connection = database.connection(); var update = connection.prepareStatement(
                     "UPDATE checkout_outbox SET compensated=TRUE WHERE pedido_id=?")) {
                 update.setObject(1, event.pedidoId());

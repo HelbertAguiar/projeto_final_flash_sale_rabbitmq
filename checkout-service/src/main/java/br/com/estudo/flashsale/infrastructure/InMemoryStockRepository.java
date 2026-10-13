@@ -43,6 +43,8 @@ public class InMemoryStockRepository implements StockRepository {
         stock.computeIfPresent(produtoId, (id, current) -> Math.addExact(current, quantidade));
     }
 
+    public void prepareDemoStock(int quantity) { stock.put("PROD-001", quantity); }
+
     // Isola os testes que usam o singleton CDI; não faz parte da porta de produção.
     void resetForTests() {
         stock.clear();

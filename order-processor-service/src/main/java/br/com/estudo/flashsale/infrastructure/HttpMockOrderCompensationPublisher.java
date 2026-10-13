@@ -12,6 +12,7 @@ public class HttpMockOrderCompensationPublisher implements OrderCompensationPubl
  private static final Logger LOG = Logger.getLogger(HttpMockOrderCompensationPublisher.class.getName());
  @Inject @RestClient CheckoutClient client;
  public void publish(OrderCompensationEvent event) {
+  LOG.info("event=publishing transport=http queue=order-compensation pedido_id=" + event.pedidoId());
   try (var response = client.send(event)) {
    if (response.getStatus() != 204) throw new IllegalStateException("Compensação não confirmada pelo Checkout");
   } catch (WebApplicationException rejected) {

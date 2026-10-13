@@ -17,6 +17,16 @@ public class ReservationService {
     public void register(OrderCreatedEvent event) {
         reservations.put(event.pedidoId(), new Reservation(event.produtoId(), event.quantidade()));
     }
+    public Set<UUID> outstanding() {
+        Set<UUID> ids = new HashSet<>();
+        reservations.forEach((id, r) -> { synchronized (r) { if (!r.completed) ids.add(id); } });
+        return ids;
+    }
+    public void published(UUID id) { reservations.get(id).published = true; }
+    public boolean isPublished(UUID id) {
+        Reservation r = reservations.get(id);
+        return r != null && r.published;
+    }
     public void compensate(OrderCompensationEvent event) {
         if (event == null || event.pedidoId() == null || event.produtoId() == null
                 || event.quantidade() <= 0 || event.motivo() == null || event.motivo().isBlank())
@@ -42,7 +52,7 @@ public class ReservationService {
         synchronized (r) { return Map.of("status", r.completed ? "COMPLETED" : "RESERVED"); }
     }
     private static class Reservation {
-        final String product; final int quantity; boolean completed;
+        final String product; final int quantity; boolean completed; volatile boolean published;
         Reservation(String product, int quantity) { this.product = product; this.quantity = quantity; }
     }
 }

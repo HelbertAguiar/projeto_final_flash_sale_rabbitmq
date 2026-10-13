@@ -2,7 +2,6 @@ package br.com.estudo.flashsale.api;
 
 import br.com.estudo.flashsale.infrastructure.OrderQueryClient;
 import com.fasterxml.jackson.databind.*;
-import io.quarkus.redis.datasource.RedisDataSource;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
@@ -13,29 +12,34 @@ import java.util.UUID;
 @Path("/v1/orders") @Produces("application/json")
 public class OrderQueryResource {
     @ConfigProperty(name="flashsale.real") boolean real;
-    @Inject RedisDataSource redis;
+    @Inject br.com.estudo.flashsale.infrastructure.RedisOrderCache redisCache;
+    @Inject br.com.estudo.flashsale.infrastructure.InMemoryOrderCache memoryCache;
+    private static final java.util.logging.Logger LOG = java.util.logging.Logger.getLogger(OrderQueryResource.class.getName());
     @Inject ObjectMapper mapper;
     @Inject @RestClient OrderQueryClient processor;
     @Inject br.com.estudo.flashsale.application.RealCheckoutService checkout;
 
     @GET @Path("/{id}")
-    public JsonNode find(@PathParam("id") UUID id) {
+    public jakarta.ws.rs.core.Response find(@PathParam("id") UUID id) {
         String key = "order:" + id;
-        if (real) {
-            try {
-                var cached = redis.execute("GET", key);
-                if (cached != null) return mapper.readTree(cached.toString());
-            } catch (Exception unavailable) { /* Cache opcional; consultar a fonte. */ }
-        }
+        br.com.estudo.flashsale.ports.OrderCache cache = real ? redisCache : memoryCache;
+        try {
+            var cached = cache.get(key);
+            if (cached.isPresent()) {
+                LOG.info("event=cache_hit pedido_id=" + id);
+                return jakarta.ws.rs.core.Response.ok(mapper.readTree(cached.get())).header("X-Cache", "HIT").build();
+            }
+        } catch (Exception unavailable) { LOG.warning("event=cache_unavailable pedido_id=" + id); }
+        LOG.info("event=cache_miss pedido_id=" + id);
         for (int attempt = 0; attempt < 3; attempt++) {
             try {
                 var order = processor.find(id);
                 // Estado transitório não deve esconder uma confirmação/cancelamento novo.
-                if (real && "CONFIRMED".equals(order.path("status").asText())) {
-                    try { redis.execute("SET", key, order.toString(), "EX", "300"); }
+                if ("CONFIRMED".equals(order.path("status").asText())) {
+                    try { cache.put(key, order.toString()); }
                     catch (RuntimeException unavailable) { /* Falha do cache não invalida a consulta. */ }
                 }
-                return order;
+                return jakarta.ws.rs.core.Response.ok(order).header("X-Cache", "MISS").build();
             } catch (WebApplicationException missing) {
                 if (missing.getResponse().getStatus() != 404) {
                     throw new ServiceUnavailableException("Consulta ao Processor indisponível");
@@ -50,7 +54,7 @@ public class OrderQueryResource {
         }
         if (real) {
             var pending = checkout.pending(id);
-            if (pending.isPresent()) return pending.get();
+            if (pending.isPresent()) return jakarta.ws.rs.core.Response.ok(pending.get()).header("X-Cache", "MISS").build();
         }
         throw new NotFoundException("Pedido não encontrado");
     }

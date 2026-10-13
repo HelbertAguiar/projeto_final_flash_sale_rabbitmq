@@ -6,7 +6,7 @@ import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
 import java.util.*;
 @Path("/internal/mock") @Produces("application/json")
-@io.quarkus.arc.profile.IfBuildProfile(anyOf = {"dev", "test"})
+@io.quarkus.arc.profile.IfBuildProfile(anyOf = {"dev", "test", "mock"})
 public class MockInspectionResource {
  @Inject StockRepository stock;
  @Inject ReservationService reservations;

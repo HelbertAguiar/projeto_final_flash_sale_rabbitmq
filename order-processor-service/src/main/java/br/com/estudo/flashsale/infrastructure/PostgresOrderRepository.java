@@ -4,7 +4,6 @@ import br.com.estudo.flashsale.domain.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import org.eclipse.microprofile.config.inject.ConfigProperty;
 import java.util.*;
 
 /** Resultado e intenção de compensação são confirmados na mesma transação local. */
@@ -13,16 +12,16 @@ public class PostgresOrderRepository {
     @Inject RealDatabase database;
     @Inject RabbitBroker broker;
     @Inject ObjectMapper mapper;
-    @ConfigProperty(name="processor.mock.failure-mode") String failureMode;
+    @Inject br.com.estudo.flashsale.application.ProcessingPolicy policy;
 
     public void process(byte[] body) {
-        if (!List.of("never", "always").contains(failureMode)) throw new IllegalArgumentException("failure-mode inválido");
         try {
             var event = mapper.readValue(body, OrderCreatedEvent.class);
             if (event == null || event.pedidoId() == null || event.produtoId() == null || event.produtoId().isBlank()
                 || event.quantidade() <= 0 || event.clienteCpf() == null || event.clienteCpf().isBlank()
                 || event.dataHoraCriacao() == null) throw new IllegalArgumentException("Evento inválido");
-            var order = Order.processing(event).finish(failureMode.equals("always") ? OrderStatus.CANCELLED : OrderStatus.CONFIRMED);
+            java.util.logging.Logger.getLogger(getClass().getName()).info("event=consumed queue=order-created pedido_id=" + event.pedidoId());
+            var order = Order.processing(event).finish(policy.result(event));
             try (var connection = database.connection()) {
                 connection.setAutoCommit(false);
                 try (var insert = connection.prepareStatement("INSERT INTO orders(pedido_id,payload) VALUES (?,?) ON CONFLICT DO NOTHING")) {
@@ -36,6 +35,7 @@ public class PostgresOrderRepository {
                     }
                 }
                 connection.commit();
+                java.util.logging.Logger.getLogger(getClass().getName()).info("event=persisted pedido_id=" + order.pedidoId() + " status=" + order.status());
             }
         } catch (Exception error) { throw new IllegalStateException("Processamento não confirmado", error); }
     }
@@ -60,6 +60,7 @@ public class PostgresOrderRepository {
                     try (var update = connection.prepareStatement("UPDATE compensation_outbox SET published=TRUE WHERE pedido_id=?")) {
                         update.setObject(1, id); update.executeUpdate();
                     }
+                    java.util.logging.Logger.getLogger(getClass().getName()).info("event=published queue=order-compensation pedido_id=" + id);
                     // Confirmação do broker não significa que o Checkout já devolveu o estoque.
                     try (var update = connection.prepareStatement("UPDATE orders SET payload=jsonb_set(payload::jsonb,'{compensacao}','\"PUBLISHED\"')::text WHERE pedido_id=?")) {
                         update.setObject(1, id); update.executeUpdate();

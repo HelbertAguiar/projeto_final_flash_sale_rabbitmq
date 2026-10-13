@@ -41,13 +41,21 @@ case "$MODE" in
     if [[ "$MODE" == infra ]]; then compose ps; exit; fi;;
 esac
 
+export FLASHSALE_DEMO_ENABLED=${FLASHSALE_DEMO_ENABLED:-true}
 need mvn
 need curl
 need python3
 if [[ -n "${JAVA_HOME:-}" ]]; then
   JAVA="$JAVA_HOME/bin/java"
   export PATH="$JAVA_HOME/bin:$PATH"
-else JAVA="$(command -v java)"; fi
+else
+  JAVA="$(command -v java)"
+  export JAVA_HOME="$(dirname "$(dirname "$(readlink -f "$JAVA")")")"
+fi
+if ! "$JAVA" -version 2>&1 | head -1 | grep -q '"21[.]'; then
+  echo 'Este projeto requer JDK 21; ajuste JAVA_HOME.' >&2
+  exit 1
+fi
 "$JAVA" -version
 mvn -version
 # Detecta conflito antes de iniciar qualquer JVM.
@@ -70,10 +78,10 @@ if [[ "$MODE" == real-local ]]; then
   export RABBITMQ_HOST=localhost
   export RABBITMQ_PORT="${RABBITMQ_PORT:-5672}"
 else
-  BUILD_PROFILE=test
-  RUNTIME_PROFILE=test
+  BUILD_PROFILE=mock
+  RUNTIME_PROFILE=mock
 fi
-# test preserva os endpoints de inspeção do mock; não executa testes neste launcher.
+# O perfil mock não depende do perfil de testes.
 mvn -B -ntp -f checkout-service/pom.xml package -DskipTests "-Dquarkus.profile=$BUILD_PROFILE"
 mvn -B -ntp -f order-processor-service/pom.xml package -DskipTests "-Dquarkus.profile=$BUILD_PROFILE"
 mkdir -p .run

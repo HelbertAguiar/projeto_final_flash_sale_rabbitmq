@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
-"""Teste HTTP ponta a ponta. Requer jars construídos com -Dquarkus.profile=test.
+"""Teste HTTP ponta a ponta. Requer jars construídos com -Dquarkus.profile=mock.
 Usa somente biblioteca padrão Python, JVMs independentes e portas livres locais.
 """
 import json
+from concurrent.futures import ThreadPoolExecutor
+import sys
 import os
 from pathlib import Path
 import socket
@@ -63,7 +65,7 @@ def await_condition(condition, seconds=20):
 def start(service, port, *properties):
     log = tempfile.TemporaryFile(mode='w+b')
     logs.append(log)
-    proc = subprocess.Popen([JAVA, '-Dquarkus.profile=test', f'-Dquarkus.http.port={port}',
+    proc = subprocess.Popen([JAVA, '-Dquarkus.profile=mock', f'-Dquarkus.http.port={port}', '-Dflashsale.demo.enabled=true',
         *properties, '-jar', str(ROOT / service / 'target/quarkus-app/quarkus-run.jar')],
         stdout=log, stderr=subprocess.STDOUT)
     processes.append(proc)
@@ -108,7 +110,7 @@ def order(id, status, compensation):
 proxy = ThreadingHTTPServer(('127.0.0.1', 0), CompensationProxy)
 threading.Thread(target=proxy.serve_forever, daemon=True).start()
 try:
-    start('checkout-service', checkout_port, '-Dcheckout.events.transport=http',
+    checkout_running = start('checkout-service', checkout_port, '-Dcheckout.events.transport=http',
           f'-Dquarkus.rest-client.processor.url={processor}')
     running = start('order-processor-service', processor_port,
                     f'-Dquarkus.rest-client.checkout.url=http://127.0.0.1:{proxy.server_port}')
@@ -128,7 +130,7 @@ try:
     assert status == 503 and stock() == 8
     print('PASS: Processor indisponível retorna 503 e devolve reserva')
 
-    start('order-processor-service', processor_port, '-Dprocessor.mock.failure-mode=always',
+    running = start('order-processor-service', processor_port, '-Dprocessor.mock.failure-mode=always',
           f'-Dquarkus.rest-client.checkout.url=http://127.0.0.1:{proxy.server_port}')
     id = create()
     cancelled = await_condition(lambda: order(id, 'CANCELLED', 'COMPLETED'))
@@ -142,6 +144,9 @@ try:
     id = create()
     await_condition(lambda: order(id, 'CANCELLED', 'PENDING'))
     assert stock() == 6
+    assert request(checkout, '/internal/demo/stock', {})[0] == 409
+    assert stock() == 6
+    print('PASS: preparação bloqueada enquanto há compensação pendente')
     retry = f'/internal/mock/orders/{id}/retry-compensation'
     assert request(processor, retry, {})[0] == 503
     CompensationProxy.enabled = True
@@ -149,6 +154,34 @@ try:
     assert request(processor, retry, {})[0] == 204
     assert order(id, 'CANCELLED', 'COMPLETED') and stock() == 8
     print('PASS: falha de entrega mantém pendência; retry recupera sem devolução duplicada')
+    running.terminate()
+    running.wait(timeout=15)
+    start('order-processor-service', processor_port, f'-Dquarkus.rest-client.checkout.url={checkout}')
+    checkout_running.terminate()
+    checkout_running.wait(timeout=15)
+    start('checkout-service', checkout_port, '-Dcheckout.events.transport=http',
+          f'-Dquarkus.rest-client.processor.url={processor}')
+    env = dict(os.environ, CHECKOUT_URL=checkout, PROCESSOR_URL=processor)
+    subprocess.run([sys.executable, str(ROOT / 'scripts/demo-flow.py'), 'mock'], env=env, check=True)
+    subprocess.run([sys.executable, str(ROOT / 'scripts/demo-flow.py'), 'mock'], env=env, check=True)
+    with ThreadPoolExecutor(max_workers=12) as executor:
+        results = list(executor.map(lambda _: request(checkout, '/v1/orders', {
+            'produto_id': 'PROD-001', 'quantidade': 1, 'cliente_cpf': '123'}), range(12)))
+    assert sum(code == 202 for code, _ in results) == 8, results
+    assert sum(code == 409 for code, _ in results) == 4, results
+    assert stock() == 0
+    for code, body in results:
+        if code == 202:
+            await_condition(lambda: order(body['pedido_id'], 'CONFIRMED', 'NOT_REQUIRED'))
+    print('PASS: concorrência HTTP em processos independentes sem overselling')
+    combined = ''
+    for log in logs:
+        log.seek(0)
+        combined += log.read().decode(errors='replace')
+    for expected in ('event=published transport=http queue=order-created', 'event=consumed queue=order-created',
+                     'queue=order-compensation pedido_id=', 'event=cache_miss pedido_id=', 'event=cache_hit pedido_id='):
+        assert expected in combined, expected
+    print('PASS: logs de publicação, consumo, compensação e cache correlacionados')
 except BaseException:
     for log in logs:
         log.seek(0)

@@ -53,6 +53,7 @@ public class CheckoutService {
         reservations.register(event);
         try {
             eventPublisher.publish(event);
+            reservations.published(pedidoId);
         } catch (RuntimeException publicationFailure) {
             reservations.restore(pedidoId, request.produtoId(), request.quantidade());
             // A causa pode conter dados pessoais em adaptadores futuros; registrar só dados seguros.

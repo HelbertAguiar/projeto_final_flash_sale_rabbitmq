@@ -78,6 +78,7 @@ services:
       - "127.0.0.1:${CHECKOUT_PORT:-8080}:8080"
     environment:
       QUARKUS_PROFILE: real
+      FLASHSALE_DEMO_ENABLED: ${FLASHSALE_DEMO_ENABLED:-false}
       QUARKUS_DATASOURCE_JDBC_URL: jdbc:postgresql://checkout-db:5432/checkout
       QUARKUS_DATASOURCE_PASSWORD: ${CHECKOUT_DB_PASSWORD:-checkout}
       QUARKUS_REDIS_HOSTS: redis://redis:6379
@@ -106,6 +107,7 @@ services:
       - "127.0.0.1:${PROCESSOR_PORT:-8081}:8081"
     environment:
       QUARKUS_PROFILE: real
+      FLASHSALE_DEMO_ENABLED: ${FLASHSALE_DEMO_ENABLED:-false}
       QUARKUS_DATASOURCE_JDBC_URL: jdbc:postgresql://processor-db:5432/processor
       QUARKUS_DATASOURCE_PASSWORD: ${PROCESSOR_DB_PASSWORD:-processor}
       RABBITMQ_HOST: rabbitmq

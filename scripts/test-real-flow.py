@@ -9,6 +9,7 @@ import json
 import os
 from pathlib import Path
 import socket
+import sys
 import subprocess
 import time
 import urllib.error
@@ -20,7 +21,7 @@ PROJECT = 'flashsale-it-' + uuid.uuid4().hex[:10]
 ENV = os.environ.copy()
 ENV.update(RABBITMQ_USERNAME='flashsale', RABBITMQ_PASSWORD='flashsale',
            CHECKOUT_DB_PASSWORD='checkout', PROCESSOR_DB_PASSWORD='processor',
-           PROCESSOR_FAILURE_MODE='never')
+           PROCESSOR_FAILURE_MODE='never', FLASHSALE_DEMO_ENABLED='true')
 # Reserva portas distintas durante a escolha; o Docker passa a ocupá-las ao subir.
 port_sockets = []
 for key in ('CHECKOUT_PORT', 'PROCESSOR_PORT', 'REDIS_PORT', 'RABBITMQ_PORT',
@@ -112,6 +113,8 @@ try:
     print('Construindo e iniciando projeto isolado:', PROJECT, flush=True)
     compose('up', '-d', '--build', '--wait', '--wait-timeout', '180', timeout=900)
     ready()
+    subprocess.run([sys.executable, str(ROOT / 'scripts/demo-flow.py'), 'real'],
+                   env=dict(ENV, CHECKOUT_URL=BASE, PROCESSOR_URL=PROCESSOR), check=True)
     product = 'IT-' + uuid.uuid4().hex
     redis('SET', 'stock:' + product, '10')
     assert create(product, 0)[0] == 400
@@ -193,6 +196,13 @@ try:
     eventually(lambda: int(compose('exec', '-T', 'rabbitmq', 'rabbitmqctl', '-q', 'list_queues',
                                   '-p', '/flashsale', 'name', 'messages').split('order-created.dlq\t')[1].splitlines()[0]) >= 1)
     print('PASS: mensagem inválida segue para DLQ após tentativas limitadas', flush=True)
+    trace = compose('logs', 'checkout-service', 'order-processor-service')
+    for expected in ('event=published queue=order-created pedido_id=',
+                     'event=consumed queue=order-created pedido_id=',
+                     'event=published queue=order-compensation pedido_id=',
+                     'event=compensated queue=order-compensation pedido_id='):
+        assert expected in trace, expected
+    print('PASS: logs reais correlacionados de publicação, consumo e compensação', flush=True)
 except BaseException:
     print(compose('logs', '--tail=80', 'checkout-service', 'order-processor-service'))
     raise
