@@ -3,12 +3,12 @@
 | Identificação acadêmica | Informação |
 |---|---|
 | Título do trabalho | Sistema de Checkout e Reserva de Estoque Relâmpago com Microsserviços |
-| Nome do aluno | [PREENCHER] |
-| Turma | [PREENCHER] |
-| Disciplina | [PREENCHER] |
-| Professor | [PREENCHER] |
-| Instituição | [PREENCHER] |
-| Data | [PREENCHER] |
+| Nome do aluno | Helbert Oscar de Aguiar Silva |
+| Turma | TURMA #1750 |
+| Disciplina | Java III (escalação tech) |
+| Professor | Luigi Ciambarella Filho |
+| Instituição | Adatech |
+| Data | 14/10/2026 |
 
 Este documento apresenta a **implementação REAL**: duas aplicações Java independentes, com Redis, RabbitMQ e PostgreSQL. A abordagem simulada possui documentação própria em [README-MOCK.md](README-MOCK.md).
 
