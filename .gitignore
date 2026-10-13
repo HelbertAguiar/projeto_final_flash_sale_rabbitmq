@@ -9,6 +9,7 @@
 .run/
 .idea/
 .vscode/
+.venv/
 
 # BlueJ files
 *.ctxt
