@@ -1,0 +1,3 @@
+# Bash precisa de LF mesmo quando o checkout Git ocorre no Windows.
+*.sh text eol=lf
+*.ps1 text eol=crlf
