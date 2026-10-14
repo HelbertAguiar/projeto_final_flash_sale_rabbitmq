@@ -24,7 +24,7 @@ Essa separação introduz desafios de sistemas distribuídos: uma mensagem pode 
 
 O objetivo geral é implementar e demonstrar um fluxo de compra assíncrono que preserve o estoque e permita consultar o resultado do pedido.
 
-A referência disponível é [especificacao-projeto-final.md](especificacao-projeto-final.md), correspondente ao enunciado do trabalho; não há arquivo denominado `Projeto_final.md` nesta revisão. Os objetivos específicos e suas evidências são:
+A referência disponível é [especificacao-projeto-final.md](especificacao-projeto-final.md). Os objetivos específicos e suas evidências são:
 
 | Objetivo específico | Requisito do enunciado | Evidência na implementação |
 |---|---|---|
@@ -36,7 +36,6 @@ A referência disponível é [especificacao-projeto-final.md](especificacao-proj
 | Consultar pedidos com Cache-Aside e tentativas limitadas | Seção 4.2 | [OrderQueryResource][co-query]: Redis, consulta HTTP ao Processor e três tentativas em caso de ausência |
 | Demonstrar sucesso, falha e recuperação | Seções 6 e 9 | [Roteiro de demonstração][demo-flow] e [teste ponta a ponta REAL][test-real] |
 
-A tabela relaciona requisitos a código existente; não representa uma certificação de atendimento integral. A consulta ao banco ocorre pela API do serviço proprietário. Falhas técnicas de persistência são retentadas, enquanto o cancelamento de negócio é determinado por uma política didática; essas distinções são detalhadas abaixo.
 
 ## 3. Tecnologias utilizadas
 
@@ -79,7 +78,7 @@ flowchart LR
 
 ### 4.2. Organização das responsabilidades
 
-Os dois serviços possuem pacotes `api`, `application`, `domain`, `ports` e `infrastructure`. Essa organização evidencia a separação de responsabilidades e os limites dos domínios propostos no enunciado:
+Os dois serviços possuem estrutura `api`, `application`, `domain`, `ports` e `infrastructure`. Essa organização evidencia a separação de responsabilidades e os limites dos domínios propostos no enunciado:
 
 - `api` converte requisições/respostas HTTP e seleciona o fluxo de execução.
 - `domain` contém eventos, estados e transições do pedido.
@@ -87,7 +86,6 @@ Os dois serviços possuem pacotes `api`, `application`, `domain`, `ports` e `inf
 - `ports` define contratos de acesso a recursos externos.
 - `infrastructure` contém os adaptadores e os workers.
 
-A separação não é completa: [RealCheckoutService][co-real] usa SQL e adaptadores concretos; [PostgresOrderRepository][op-repository] também coordena processamento e publicação. Portanto, o código demonstra princípios de separação de domínio e infraestrutura, mas não uma arquitetura hexagonal estrita. A validação em [CheckoutService][co-validation], a política em [ProcessingPolicy][op-policy] e as transições em [Order][op-order] são pontos de reutilização das regras.
 
 ### 4.3. RabbitMQ: roteamento, consumo e confirmação
 
@@ -131,7 +129,7 @@ Essas medidas tratam reentregas internas. O endpoint de criação gera um novo U
 
 A **SAGA simplificada** encadeia operações locais e uma ação compensatória. Se o processamento decide cancelar, o Checkout devolve o estoque anteriormente reservado. Isso não desfaz uma transação global: a devolução é uma nova operação, com seu próprio prazo e possíveis falhas.
 
-[ProcessingPolicy][op-policy] confirma normalmente ou cancela conforme uma falha configurada. Mesmo com infraestrutura REAL, a decisão de falha é didática; não há integração de pagamento. Erros técnicos no handler, como falha ao gravar no banco, provocam retry/DLQ e não equivalem automaticamente a `CANCELLED`.
+[ProcessingPolicy][op-policy] confirma normalmente ou cancela conforme uma falha configurada.
 
 **Cache-Aside** é o padrão de consultar o cache antes da fonte. Em [OrderQueryResource][co-query], a chave `order:UUID` é lida no Redis; em caso de ausência, o Checkout chama `GET /internal/orders/{id}` no Processor. Somente `CONFIRMED` é cacheado, por 300 segundos, em [RedisOrderCache][co-cache]. Estados transitórios e cancelados permanecem consultados na fonte.
 
