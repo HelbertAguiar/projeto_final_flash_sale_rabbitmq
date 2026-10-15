@@ -74,12 +74,14 @@ PY
 if [[ "$MODE" == real-local ]]; then
   BUILD_PROFILE=prod
   RUNTIME_PROFILE=real
+  REAL=true
   export QUARKUS_REDIS_HOSTS="redis://localhost:${REDIS_PORT:-6379}"
   export RABBITMQ_HOST=localhost
   export RABBITMQ_PORT="${RABBITMQ_PORT:-5672}"
 else
   BUILD_PROFILE=mock
   RUNTIME_PROFILE=mock
+  REAL=false
 fi
 # O perfil mock não depende do perfil de testes.
 mvn -B -ntp -f checkout-service/pom.xml package -DskipTests "-Dquarkus.profile=$BUILD_PROFILE"
@@ -97,6 +99,7 @@ trap 'exit 143' TERM
 FAILURE="${PROCESSOR_FAILURE_MODE:-never}"
 if [[ "$MODE" == mock-failure ]]; then FAILURE=always; fi
 "$JAVA" "-Dquarkus.profile=$RUNTIME_PROFILE" "-Dquarkus.http.port=${PROCESSOR_PORT:-8081}" \
+  "-Dflashsale.real=$REAL" \
   "-Dprocessor.mock.failure-mode=$FAILURE" \
   "-Dquarkus.datasource.jdbc.url=jdbc:postgresql://localhost:${PROCESSOR_DB_PORT:-5434}/processor" \
   "-Dquarkus.datasource.password=${PROCESSOR_DB_PASSWORD:-processor}" \
@@ -104,6 +107,7 @@ if [[ "$MODE" == mock-failure ]]; then FAILURE=always; fi
   -jar order-processor-service/target/quarkus-app/quarkus-run.jar >.run/processor.log 2>&1 &
 pids+=("$!")
 "$JAVA" "-Dquarkus.profile=$RUNTIME_PROFILE" "-Dquarkus.http.port=${CHECKOUT_PORT:-8080}" \
+  "-Dflashsale.real=$REAL" \
   -Dcheckout.events.transport=http \
   "-Dquarkus.datasource.jdbc.url=jdbc:postgresql://localhost:${CHECKOUT_DB_PORT:-5433}/checkout" \
   "-Dquarkus.datasource.password=${CHECKOUT_DB_PASSWORD:-checkout}" \

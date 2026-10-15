@@ -1,5 +1,7 @@
 # Checkout Service
 
+Esta é a branch `versao-dependencias-mockadas`. O caminho recomendado é `bash scripts/run-mock.sh`; instruções completas e testes estão no [README principal](../README.md). As referências reais abaixo descrevem adaptadores herdados e inativos no modo mockado.
+
 Java 21 / Quarkus. API pública: `POST /v1/orders` e `GET /v1/orders/{pedido_id}`.
 
 ## Executar
