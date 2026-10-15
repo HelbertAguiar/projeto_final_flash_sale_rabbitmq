@@ -2,7 +2,6 @@
 
 Projeto final de Java III — Helbert Oscar de Aguiar Silva, turma #1750, Adatech.
 
-Esta branch `main` executa exclusivamente integrações reais. A versão didática completa foi preservada na branch `versao-dependencias-mockadas`, a partir de `f247874`. Cada branch é independente; a eventual exclusão da branch didática não afeta esta aplicação.
 
 ## Arquitetura
 
