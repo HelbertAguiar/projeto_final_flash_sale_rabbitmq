@@ -18,7 +18,7 @@ public class RealCheckoutService {
     @Inject ObjectMapper mapper;
 
     public CreateOrderResponse createOrder(CreateOrderRequest request) {
-        CheckoutService.validate(request);
+        OrderValidation.validate(request);
         var event = new OrderCreatedEvent(UUID.randomUUID(), request.produtoId(), request.quantidade(),
             request.clienteCpf(), request.clienteNome(), LocalDateTime.now().truncatedTo(ChronoUnit.SECONDS));
         database.initialize();

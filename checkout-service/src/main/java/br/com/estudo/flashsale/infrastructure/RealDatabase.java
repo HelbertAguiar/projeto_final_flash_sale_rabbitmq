@@ -7,7 +7,7 @@ import jakarta.inject.Inject;
 import java.sql.*;
 import java.nio.charset.StandardCharsets;
 
-/** O pool inativo nunca é acessado no modo mock. */
+/** Acesso ao banco do serviço; pool desativado somente nos testes isolados. */
 @ApplicationScoped
 public class RealDatabase {
     @Inject Instance<AgroalDataSource> pool;

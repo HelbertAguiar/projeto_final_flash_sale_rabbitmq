@@ -221,16 +221,10 @@ Se interromper o roteiro durante uma pausa, retome o serviço pausado (`docker c
 - Falha técnica: inspecione logs e filas `order-created.retry`, `order-created.dlq`, `order-compensation.retry`, `order-compensation.dlq`; não equivalem ao cancelamento controlado.
 - Portas ocupadas: encerre a outra execução. Se personalizar `.env`, ajuste URLs dos comandos.
 
-## Verificação funcional no MOCK
+## Validação automatizada complementar
 
-Inicie as duas JVMs conforme o README. Execute manualmente a preparação HTTP da etapa 1, os POSTs e a leitura de UUID das etapas 2–3, e os GETs das etapas 7–8. Para falha, registre o marcador e envie o segundo POST da etapa 9, **sem os comandos Docker e sem pausas**. Consulte o novo UUID até observar `CANCELLED`.
+O roteiro acima permite observar cada etapa. Para uma execução automatizada sobre o ambiente dedicado já iniciado, use `bash scripts/demo-real.sh`.
 
-Inspeções HTTP adicionais (PowerShell: `curl.exe`):
-```bash
-curl -i http://localhost:8080/internal/demo/stock
-curl -i "http://localhost:8080/internal/demo/publications/$pedido"
-curl -i "http://localhost:8081/internal/orders/$pedido"
-curl -i "http://localhost:8080/internal/demo/reservations/$falha"
-```
+Para validar também recuperação, concorrência, reinício e DLQ em um projeto Compose isolado, execute `python3 scripts/test-real-flow.py`. Ele escolhe portas próprias e remove somente os recursos criados por essa execução.
 
-Esperado: publicação simulada `published=true`, pedido confirmado em memória, reserva cancelada `COMPLETED` e saldo final `8`. Observe os UUIDs nos terminais das JVMs. `X-Cache: HIT` comprova somente cache em memória. Não há filas RabbitMQ nem tabelas PostgreSQL para inspecionar no MOCK; use o REAL para apresentar os 12 requisitos integralmente.
+A demonstração sem infraestrutura externa foi preservada integralmente na branch `versao-dependencias-mockadas`, com seu próprio README e roteiro. Não há endpoints ou execução mockada nesta branch.

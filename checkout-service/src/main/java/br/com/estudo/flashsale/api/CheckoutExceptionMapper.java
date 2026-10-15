@@ -2,7 +2,6 @@ package br.com.estudo.flashsale.api;
 
 import br.com.estudo.flashsale.domain.InsufficientStockException;
 import br.com.estudo.flashsale.domain.InvalidOrderException;
-import br.com.estudo.flashsale.domain.PublicationFailedException;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.ext.ExceptionMapper;
 import jakarta.ws.rs.ext.Provider;
@@ -22,9 +21,6 @@ public class CheckoutExceptionMapper implements ExceptionMapper<RuntimeException
             message = exception.getMessage();
         } else if (exception instanceof InsufficientStockException) {
             status = 409;
-            message = exception.getMessage();
-        } else if (exception instanceof PublicationFailedException) {
-            status = 503;
             message = exception.getMessage();
         } else if (exception instanceof jakarta.ws.rs.WebApplicationException httpError) {
             status = httpError.getResponse().getStatus();

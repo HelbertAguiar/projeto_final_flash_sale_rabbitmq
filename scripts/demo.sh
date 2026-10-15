@@ -18,24 +18,15 @@ for ((attempt=0; attempt<40; attempt++)); do
   if [[ "$status" == "$EXPECTED" ]]; then
     echo "$response"
     if [[ "$EXPECTED" == CANCELLED ]]; then
-      if curl --silent --fail "$BASE/internal/mock/reservations/$id" >/dev/null; then
-        target="$BASE/internal/mock/reservations/$id"
-        for ((retry=0; retry<30; retry++)); do
-          result="$(curl --fail --silent "$target")"
-          if [[ "$result" == *COMPLETED* ]]; then echo "$result"; exit 0; fi
-          sleep 1
-        done
-      else
-        for ((retry=0; retry<30; retry++)); do
-          result="$(docker compose exec -T redis redis-cli HGET "reservation:$id" status)"
-          if [[ "$result" == COMPLETED ]]; then
-            echo "Compensação concluída; estoque atual:"
-            docker compose exec -T redis redis-cli GET stock:PROD-001
-            exit 0
-          fi
-          sleep 1
-        done
-      fi
+      for ((retry=0; retry<30; retry++)); do
+        result="$(docker compose exec -T redis redis-cli HGET "reservation:$id" status)"
+        if [[ "$result" == COMPLETED ]]; then
+          echo "Compensação concluída; estoque atual:"
+          docker compose exec -T redis redis-cli GET stock:PROD-001
+          exit 0
+        fi
+        sleep 1
+      done
       echo "Pedido cancelado, mas compensação não concluiu no prazo." >&2; exit 1
     fi
     exit 0

@@ -2,80 +2,32 @@
 
 Projeto final de Java III — Helbert Oscar de Aguiar Silva, turma #1750, Adatech.
 
-Dois microsserviços: Checkout recebe compras e reserva estoque; Order Processor processa os eventos e confirma ou cancela pedidos. `202 Accepted` significa aceitação para processamento assíncrono. Contrato e requisitos: [especificação](especificacao-projeto-final.md).
+Esta branch `main` executa exclusivamente integrações reais. A versão didática completa foi preservada na branch `versao-dependencias-mockadas`, a partir de `f247874`. Cada branch é independente; a eventual exclusão da branch didática não afeta esta aplicação.
 
-## Ambientes
+## Arquitetura
 
-| | MOCK | REAL |
-|---|---|---|
-| Execução proposta | Duas JVMs locais | Aplicações e dependências no Docker Compose |
-| Estoque e cache | Mapas em memória | Redis 7.4, reserva atômica com Lua, cache de 300 s |
-| Pedidos | Repositório em memória | PostgreSQL 17, um banco por serviço |
-| Eventos | HTTP entre serviços e fila local em memória | RabbitMQ 4, filas `order-created` e `order-compensation` |
-| Recuperação | Dados perdidos ao encerrar JVMs | Volumes, outboxes, ack, retry e DLQ |
-| Evidência dos 12 requisitos | Apenas simulação funcional | Demonstração completa com infraestrutura real |
+- Checkout: API pública, intenção durável no PostgreSQL, reserva atômica/idempotente no Redis e publicação pelo outbox.
+- Order Processor: consome RabbitMQ, persiste CONFIRMED/CANCELLED no próprio PostgreSQL e grava a compensação no outbox da mesma transação.
+- RabbitMQ: filas `order-created` e `order-compensation`, mensagens persistentes, publisher confirms, ack, retry e DLQ. Os workers usam o cliente Java AMQP e polling `basicGet` a cada segundo.
+- Redis: estoque/reservas e cache de pedidos confirmados com TTL de 300 segundos. A consulta usa a API interna do Processor em caso de MISS.
 
-MOCK não comprova uso de Redis, RabbitMQ ou persistência durável. Detalhes e limites: [README-MOCK](README-MOCK.md). A arquitetura e os adaptadores existentes são preservados. O REAL usa cliente Java AMQP e JDBC; os workers consultam as filas a cada segundo (`basicGet`).
+`POST /v1/orders` retorna `202 Accepted`, UUID e `PROCESSING`; `GET /v1/orders/{id}` acompanha o resultado e informa `X-Cache: MISS|HIT`. 202 significa aceitação para processamento assíncrono. Contrato e requisitos: [especificação](especificacao-projeto-final.md).
+
+Não há seleção de execução HTTP/mock ou fallback para memória. O perfil `real` continua aceito pelos comandos existentes; os perfis padrão/dev também usam infraestrutura real. Mockito e a desativação de recursos nos testes ficam somente no escopo de teste.
 
 ## Pré-requisitos
 
-- Windows 10/11: PowerShell 5.1 ou 7, JDK 21, Maven 3.9+, Docker Desktop com containers Linux e WSL2 compatível com sua versão do Windows.
-- Linux: Bash, JDK 21, Maven 3.9+, Docker Engine e plugin Compose.
-- Docker Compose com `up --wait`; daemon iniciado e acesso permitido ao usuário.
-- `curl.exe` no Windows; `curl` no Linux. Python não é necessário neste roteiro.
-- Internet na primeira compilação/build. Quarkus 3.40.1 é resolvido pelo Maven, sem instalação de CLI.
+- JDK 21 e Maven 3.9+ para compilação e execução local. **Confira Java 21 tanto em `java -version` quanto em `mvn -version`.**
+- Docker Engine/Compose no Linux ou Docker Desktop com containers Linux no Windows. Compose deve suportar `up --wait`; daemon iniciado e acessível.
+- Bash/curl no Linux; PowerShell 5.1/7 e curl.exe no Windows.
+- Python 3, somente biblioteca padrão, para automações opcionais. O teste real automatizado usa recursos Linux (`/dev/null`).
+- Internet para resolver dependências Maven e imagens ainda não disponíveis localmente. Quarkus 3.40.1 é resolvido pelo Maven.
 
-Execute na raiz do repositório:
+Se necessário, configure `JAVA_HOME` com seu JDK 21 e acrescente seu diretório bin ao PATH. Dockerfiles já compilam com Maven/JDK 21 e executam com JRE 21.
 
-```text
-java -version
-mvn -version
-docker compose version
-```
+## Executar com Docker Compose
 
-**Java e Maven devem indicar Java 21.** Se necessário, ajuste para o caminho real do seu JDK:
-
-PowerShell:
-```powershell
-$env:JAVA_HOME = 'C:\Program Files\Eclipse Adoptium\jdk-21'
-$env:Path = "$env:JAVA_HOME\bin;$env:Path"
-```
-
-Bash:
-```bash
-export JAVA_HOME=/caminho/do/jdk-21
-export PATH="$JAVA_HOME/bin:$PATH"
-```
-
-## Inicialização
-
-Os novos launchers apenas compilam/iniciam; não executam testes nem enviam compras. Habilitam os controles locais de demonstração e processamento normal. Não execute MOCK e REAL simultaneamente nas mesmas portas.
-
-### MOCK: dois terminais
-
-PowerShell, terminal 1 e terminal 2, respectivamente:
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\start.ps1 -Mode mock -Service order-processor-service
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\start.ps1 -Mode mock -Service checkout-service
-```
-
-Bash, terminal 1 e terminal 2, respectivamente:
-```bash
-bash scripts/start.sh mock order-processor-service
-bash scripts/start.sh mock checkout-service
-```
-
-Aguarde cada aplicação iniciar. Os logs ficam no próprio terminal; Ctrl+C encerra a JVM correspondente. Os scripts MOCK usam as portas padrão das aplicações e não carregam `.env`; variáveis Quarkus já exportadas podem alterar sua configuração.
-
-### REAL: Docker Compose
-
-Opcionalmente copie [.env.example](.env.example) para `.env` se ainda não existir. O Compose lê esse arquivo; mantenha os valores padrão para seguir o roteiro.
-
-PowerShell:
-```powershell
-if (-not (Test-Path .env)) { Copy-Item .env.example .env }
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\start.ps1 -Mode real
-```
+Na raiz, opcionalmente copie [.env.example](.env.example) para `.env` sem sobrescrever um arquivo existente.
 
 Bash:
 ```bash
@@ -83,7 +35,13 @@ Bash:
 bash scripts/start.sh real
 ```
 
-Os Dockerfiles compilam com Maven/JDK 21 e executam com JRE 21. O Compose espera os healthchecks e inicializa `PROD-001=10`, `PROD-002=0` somente quando as chaves não existem. Reiniciar não repõe estoque consumido. Os controles `/internal/demo/*` são para uso local dedicado e não possuem autenticação.
+PowerShell:
+```powershell
+if (-not (Test-Path .env)) { Copy-Item .env.example .env }
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\start.ps1 -Mode real
+```
+
+Os launchers compilam/iniciam e habilitam os controles locais de demonstração; não enviam compras nem executam testes. O Compose inicializa PROD-001=10 e PROD-002=0 somente se as chaves não existirem. Reiniciar não repõe estoque consumido.
 
 | Serviço | Endereço padrão |
 |---|---|
@@ -94,45 +52,67 @@ Os Dockerfiles compilam com Maven/JDK 21 e executam com JRE 21. O Compose espera
 | PostgreSQL Checkout | localhost:5433, banco/usuário/senha `checkout` |
 | PostgreSQL Processor | localhost:5434, banco/usuário/senha `processor` |
 
-Verificação de prontidão (PowerShell: use `curl.exe`; Bash: use `curl`):
+Verifique (PowerShell: use curl.exe):
 ```bash
 curl -i http://localhost:8080/health/ready
 curl -i http://localhost:8081/health/ready
-```
-
-Esperado: HTTP 200, `status=UP` e `mode=mock` ou `real`. No REAL:
-```text
 docker compose ps
-docker compose logs --tail 50 checkout-service order-processor-service
 ```
+Esperado: HTTP 200, `status=UP`, `mode=real`. Sem as dependências, a prontidão retorna 503/DOWN; não muda para memória.
 
-Encerrar REAL, preservando volumes:
-```text
+Encerre preservando volumes:
+```bash
 docker compose down
 ```
 
-## Demonstração e compilação
+## Execução local com infraestrutura real
 
-Siga [docs/TESTES.md](docs/TESTES.md): 12 etapas manuais, com inspeção individual de filas, logs, PostgreSQL e Redis, em PowerShell ou Bash. Não execute os scripts legados `demo-*`/`test-*-flow.py` durante essa apresentação: são automações anteriores, preservadas, mas não fazem parte do roteiro.
-
-Compilação local, em ambos os shells (sem execução de testes):
-```text
-mvn -B -ntp -f checkout-service/pom.xml package -DskipTests
-mvn -B -ntp -f order-processor-service/pom.xml package -DskipTests
+```bash
+bash scripts/run-real-local.sh
 ```
+Esse comando inicia a infraestrutura em Docker, compila os módulos e inicia duas JVMs Java 21. Lê `.env`; logs ficam em `.run/`. Ctrl+C encerra somente as JVMs iniciadas pelo script; encerre a infraestrutura separadamente. Não use as mesmas portas de uma execução completa já ativa.
 
-Os testes Java preexistentes continuam disponíveis via `mvn -f <serviço>/pom.xml test`; não substituem a observação manual da infraestrutura. Não há POM agregador na raiz.
+Para desenvolvimento por módulo, inicie `bash scripts/run-infrastructure.sh` e siga [Checkout](checkout-service/README.md) e [Processor](order-processor-service/README.md).
 
-## Limites do fluxo
+## Testes e demonstrações
 
-Somente pedidos `CONFIRMED` entram no cache. No cancelamento, o Processor persiste `CANCELLED` e a outbox de compensação na mesma transação; a devolução ocorre depois no Checkout. `compensacao=PUBLISHED` indica publicação no broker, não estoque devolvido: verifique `reservation:UUID` com `status=COMPLETED` e o saldo. Mensagens com falha técnica passam por retry e podem chegar à DLQ; a falha controlada do roteiro é uma decisão de negócio e gera compensação. Cada POST cria outro UUID, sem chave de idempotência do cliente.
+Testes Java e empacotamento (sem infraestrutura externa):
+```bash
+mvn -B -ntp -f checkout-service/pom.xml clean verify
+mvn -B -ntp -f order-processor-service/pom.xml clean verify
+```
+Não há POM agregador na raiz. Testes isolados usam Mockito nas fronteiras de infraestrutura e exercitam o código real. O Failsafe permanece desabilitado como no projeto original; os testes Java são executados pelo Surefire. Isso não substitui a integração abaixo.
 
-## Validação realizada em 14/10/2026
+Integração real completa, sem precisar iniciar o ambiente normal:
+```bash
+python3 scripts/test-real-flow.py
+```
+O script cria projeto Compose com nome e portas próprios, ignora o `.env` local e remove somente os containers/volumes que criou. Inclui demonstração, contratos, persistência, indisponibilidade e recuperação, concorrência, duplicidade, compensação e DLQ.
 
-- Linux: os dois módulos empacotados com Maven 3.9.11 e JDK 21; testes não executados (`-DskipTests`).
-- MOCK: inicialização pelos novos scripts Bash e prontidão `UP`, `mode=mock`, nos dois serviços.
-- REAL: build das imagens com camadas em cache e `compose up --wait` concluídos; aplicações, Redis, RabbitMQ e os dois PostgreSQL saudáveis.
-- Sintaxe Bash e revisão de whitespace verificadas. Windows/PowerShell não executado: não há Windows nem PowerShell instalado neste ambiente.
-- Os 12 passos estão documentados para execução manual; não foram executados como demonstração automática nem certificados integralmente nesta validação de inicialização.
+No ambiente normal já iniciado pelo launcher:
+```bash
+bash scripts/demo-real.sh
+```
+Esse roteiro modifica o estoque de demonstração: use ambiente dedicado, sem tráfego concorrente. Para inspecionar individualmente filas, bancos e Redis, siga [os 12 passos manuais](docs/TESTES.md).
 
-Foi necessário liberar acesso ao Maven Central e ao daemon Docker fora do sandbox. Um conflito de porta durante a validação foi resolvido encerrando o MOCK antes de iniciar o REAL.
+## Falha controlada e limites
+
+Os controles `/internal/demo/*` permanecem porque demonstram as integrações reais. São locais, sem autenticação, e ficam desativados por padrão (`flashsale.demo.enabled=false`). O launcher os habilita explicitamente.
+
+`processor.failure-mode=never|always` controla o cancelamento didático. No Compose, use `PROCESSOR_FAILURE_MODE`; `bash scripts/run.sh docker-failure` força cancelamentos e `bash scripts/run-docker.sh` restaura o processamento normal. A propriedade antiga `processor.mock.failure-mode` continua como alias quando a nova não é definida, para compatibilidade. Essa simulação de decisão de negócio não substitui infraestrutura.
+
+Somente CONFIRMED entra no cache. `compensacao=PUBLISHED` significa publicação no RabbitMQ, não estoque devolvido: confira a reserva Redis com status COMPLETED e o saldo. Falhas técnicas passam por retry/DLQ; cancelamentos de negócio geram compensação. Cada POST gera outro UUID, sem chave de idempotência do cliente.
+
+## Alternar versões
+
+Encerre o ambiente atual antes de trocar, para evitar portas compartilhadas:
+```bash
+git switch versao-dependencias-mockadas
+bash scripts/run-mock.sh
+# Após encerrar as JVMs:
+git switch main
+bash scripts/start.sh real
+```
+Recompile ao alternar: os diretórios target não são versionados. O perfil `mock` antigo não seleciona mais dependências em memória nesta branch; use a branch didática.
+
+Veja [inventário e validação da separação](docs/SEGREGACAO.md).

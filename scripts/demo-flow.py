@@ -8,7 +8,7 @@ import urllib.error
 import urllib.request
 import uuid
 
-MODE = sys.argv[1] if len(sys.argv) > 1 else 'mock'
+MODE = sys.argv[1] if len(sys.argv) > 1 else 'real'
 CHECKOUT = os.environ.get('CHECKOUT_URL', 'http://127.0.0.1:' + os.environ.get('CHECKOUT_PORT', '8080'))
 PROCESSOR = os.environ.get('PROCESSOR_URL', 'http://127.0.0.1:' + os.environ.get('PROCESSOR_PORT', '8081'))
 TIMEOUT = float(os.environ.get('DEMO_TIMEOUT', '45'))
@@ -66,7 +66,7 @@ def create(name):
 
 
 def main():
-    check(MODE in ('mock', 'real'), 'Uso: demo-flow.py mock|real')
+    check(MODE == 'real', 'Uso: demo-flow.py real')
     for base in (CHECKOUT, PROCESSOR):
         code, health, _ = request(base, '/health/ready')
         check(code == 200 and health['mode'] == MODE, f'{base}: perfil ou infraestrutura incorretos: {health}')

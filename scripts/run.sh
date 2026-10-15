@@ -4,9 +4,7 @@ ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 usage() {
   cat <<'HELP'
-Uso: bash scripts/run.sh <mock|mock-failure|infra|real-local|docker|docker-failure|stop>
-  mock          Duas JVMs, HTTP e memória; não requer Docker.
-  mock-failure  Mesmo modo, simulando cancelamento no Processor.
+Uso: bash scripts/run.sh <infra|real-local|docker|docker-failure|stop>
   infra         Redis, RabbitMQ e dois PostgreSQL em Docker + estoque inicial.
   real-local    Dependências em Docker e duas JVMs locais no perfil real.
   docker        Todo o sistema em Docker, processamento normal.
@@ -17,15 +15,13 @@ Configuração opcional: .env (veja .env.example). Logs locais: .run/.
 HELP
 }
 MODE="${1:-help}"
-case "$MODE" in mock|mock-failure|infra|real-local|docker|docker-failure|stop) ;; help|--help|-h) usage; exit 0;; *) usage; exit 2;; esac
+case "$MODE" in infra|real-local|docker|docker-failure|stop) ;; help|--help|-h) usage; exit 0;; *) usage; exit 2;; esac
 if [[ -f .env ]]; then set -a; source .env; set +a; fi
 need() { command -v "$1" >/dev/null || { echo "Ferramenta necessária: $1" >&2; exit 1; }; }
 compose() { docker compose "$@"; }
-if [[ "$MODE" != mock && "$MODE" != mock-failure ]]; then
-  need docker
-  docker compose version >/dev/null
-  docker info >/dev/null
-fi
+need docker
+docker compose version >/dev/null
+docker info >/dev/null
 case "$MODE" in
   stop) compose down; exit;;
   docker|docker-failure)
@@ -71,17 +67,11 @@ for port in ports:
         except OSError:
             sys.exit(f"Porta {port} ocupada. Encerre a outra execução ou ajuste .env.")
 PY
-if [[ "$MODE" == real-local ]]; then
-  BUILD_PROFILE=prod
-  RUNTIME_PROFILE=real
-  export QUARKUS_REDIS_HOSTS="redis://localhost:${REDIS_PORT:-6379}"
-  export RABBITMQ_HOST=localhost
-  export RABBITMQ_PORT="${RABBITMQ_PORT:-5672}"
-else
-  BUILD_PROFILE=mock
-  RUNTIME_PROFILE=mock
-fi
-# O perfil mock não depende do perfil de testes.
+BUILD_PROFILE=prod
+RUNTIME_PROFILE=real
+export QUARKUS_REDIS_HOSTS="redis://localhost:${REDIS_PORT:-6379}"
+export RABBITMQ_HOST=localhost
+export RABBITMQ_PORT="${RABBITMQ_PORT:-5672}"
 mvn -B -ntp -f checkout-service/pom.xml package -DskipTests "-Dquarkus.profile=$BUILD_PROFILE"
 mvn -B -ntp -f order-processor-service/pom.xml package -DskipTests "-Dquarkus.profile=$BUILD_PROFILE"
 mkdir -p .run
@@ -95,16 +85,13 @@ trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 FAILURE="${PROCESSOR_FAILURE_MODE:-never}"
-if [[ "$MODE" == mock-failure ]]; then FAILURE=always; fi
 "$JAVA" "-Dquarkus.profile=$RUNTIME_PROFILE" "-Dquarkus.http.port=${PROCESSOR_PORT:-8081}" \
-  "-Dprocessor.mock.failure-mode=$FAILURE" \
+  "-Dprocessor.failure-mode=$FAILURE" \
   "-Dquarkus.datasource.jdbc.url=jdbc:postgresql://localhost:${PROCESSOR_DB_PORT:-5434}/processor" \
   "-Dquarkus.datasource.password=${PROCESSOR_DB_PASSWORD:-processor}" \
-  "-Dquarkus.rest-client.checkout.url=http://localhost:${CHECKOUT_PORT:-8080}" \
   -jar order-processor-service/target/quarkus-app/quarkus-run.jar >.run/processor.log 2>&1 &
 pids+=("$!")
 "$JAVA" "-Dquarkus.profile=$RUNTIME_PROFILE" "-Dquarkus.http.port=${CHECKOUT_PORT:-8080}" \
-  -Dcheckout.events.transport=http \
   "-Dquarkus.datasource.jdbc.url=jdbc:postgresql://localhost:${CHECKOUT_DB_PORT:-5433}/checkout" \
   "-Dquarkus.datasource.password=${CHECKOUT_DB_PASSWORD:-checkout}" \
   "-Dquarkus.rest-client.processor.url=http://localhost:${PROCESSOR_PORT:-8081}" \

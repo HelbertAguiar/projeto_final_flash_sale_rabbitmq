@@ -4,16 +4,13 @@ import br.com.estudo.flashsale.infrastructure.OrderQueryClient;
 import com.fasterxml.jackson.databind.*;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
-import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
 import java.util.UUID;
 
 /** Cache-Aside: o acesso ao banco do Processor respeita a API do proprietário. */
 @Path("/v1/orders") @Produces("application/json")
 public class OrderQueryResource {
-    @ConfigProperty(name="flashsale.real") boolean real;
     @Inject br.com.estudo.flashsale.infrastructure.RedisOrderCache redisCache;
-    @Inject br.com.estudo.flashsale.infrastructure.InMemoryOrderCache memoryCache;
     private static final java.util.logging.Logger LOG = java.util.logging.Logger.getLogger(OrderQueryResource.class.getName());
     @Inject ObjectMapper mapper;
     @Inject @RestClient OrderQueryClient processor;
@@ -22,7 +19,7 @@ public class OrderQueryResource {
     @GET @Path("/{id}")
     public jakarta.ws.rs.core.Response find(@PathParam("id") UUID id) {
         String key = "order:" + id;
-        br.com.estudo.flashsale.ports.OrderCache cache = real ? redisCache : memoryCache;
+        br.com.estudo.flashsale.ports.OrderCache cache = redisCache;
         try {
             var cached = cache.get(key);
             if (cached.isPresent()) {
@@ -52,10 +49,8 @@ public class OrderQueryResource {
                 throw new ServiceUnavailableException("Consulta ao Processor indisponível");
             }
         }
-        if (real) {
-            var pending = checkout.pending(id);
-            if (pending.isPresent()) return jakarta.ws.rs.core.Response.ok(pending.get()).header("X-Cache", "MISS").build();
-        }
+        var pending = checkout.pending(id);
+        if (pending.isPresent()) return jakarta.ws.rs.core.Response.ok(pending.get()).header("X-Cache", "MISS").build();
         throw new NotFoundException("Pedido não encontrado");
     }
 }

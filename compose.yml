@@ -113,7 +113,7 @@ services:
       RABBITMQ_HOST: rabbitmq
       RABBITMQ_USERNAME: ${RABBITMQ_USERNAME:-flashsale}
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-flashsale}
-      PROCESSOR_MOCK_FAILURE_MODE: ${PROCESSOR_FAILURE_MODE:-never}
+      PROCESSOR_FAILURE_MODE: ${PROCESSOR_FAILURE_MODE:-never}
     depends_on:
       rabbitmq:
         condition: service_healthy
