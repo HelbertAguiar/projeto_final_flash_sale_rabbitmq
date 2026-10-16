@@ -14,6 +14,10 @@ Projeto final de Java III — Helbert Oscar de Aguiar Silva, turma #1750, Adatec
 
 Contrato e requisitos definidos em: [especificação](especificacao-projeto-final.md).
 
+## Pattern Outbox
+
+O outbox grava o evento no PostgreSQL antes de enviá-lo ao RabbitMQ, evitando perder a intenção caso o broker esteja indisponível. No Checkout, `checkout_outbox` retém o `order-created` até a reserva no Redis ficar pronta e a publicação ser confirmada; no Processor, o pedido cancelado e a compensação em `compensation_outbox` são persistidos na mesma transação e publicados posteriormente por um worker.
+
 ## Pré-requisitos
 
 - JDK 21 e Maven 3.9+ para compilação e execução local. **Confira Java 21 tanto em `java -version` quanto em `mvn -version`.**

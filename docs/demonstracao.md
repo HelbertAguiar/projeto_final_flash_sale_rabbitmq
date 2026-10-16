@@ -44,6 +44,8 @@ curl -sS -D .run/headers.txt -o .run/resposta.json -H 'Content-Type: application
 
 O Checkout reserva duas unidades e aceita o pedido mesmo com o Processor pausado.
 
+Use a interface gráfica do [rabbitmq](http://localhost:15672) (credencial default flashsale/flashsale) para visualizar também o pedido na fila.
+
 ## 3. Resposta 202 e identificador
 
 PowerShell:
