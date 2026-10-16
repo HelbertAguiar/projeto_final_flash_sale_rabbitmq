@@ -24,7 +24,9 @@ class OrderQueryResourceTest {
     @Test void confirmedMissPopulatesCacheAndHitAvoidsProcessor() throws Exception {
         var order = resource.mapper.readTree("{\"status\":\"CONFIRMED\"}");
         when(resource.processor.find(id)).thenReturn(order);
-        when(resource.redisCache.get("order:" + id)).thenReturn(Optional.empty(), Optional.of(order.toString()));
+        when(resource.redisCache.get("order:" + id))
+                .thenReturn(Optional.empty())
+                .thenReturn(Optional.of(order.toString()));
         try (var first = resource.find(id); var second = resource.find(id)) {
             assertEquals("MISS", first.getHeaderString("X-Cache"));
             assertEquals("HIT", second.getHeaderString("X-Cache"));
