@@ -1,6 +1,6 @@
-# Demonstração manual dos 12 requisitos
+# Demonstração manual dos requisitos
 
-Use o ambiente **REAL** iniciado conforme o [README](../README.md). Execute uma etapa por vez, na raiz do projeto, sem tráfego concorrente. Os comandos não formam um script automático. Mantenha as variáveis no mesmo terminal. Os exemplos pressupõem portas e credenciais padrão.
+Use o ambiente iniciado conforme o [README](../README.md). Execute uma etapa por vez, na raiz do projeto, sem comando concorrente. Os comandos não formam um script automático. Mantenha as variáveis no mesmo terminal. Os exemplos pressupõem portas e credenciais padrão.
 
 Nos blocos `bash` com `curl`, PowerShell deve usar **`curl.exe`** (evita o alias de `Invoke-WebRequest` no Windows PowerShell 5.1). Comandos `docker compose` e comandos com `$pedido`/`$falha` funcionam nos dois shells depois de definir as variáveis conforme indicado. Arquivos JSON temporários evitam problemas de aspas no PowerShell 5.1.
 
@@ -8,7 +8,7 @@ Abra http://localhost:15672, entre com `flashsale` / `flashsale`, selecione vhos
 
 ## 1. Estoque inicial
 
-Com ambos os serviços saudáveis, prepare o produto de demonstração:
+Com ambos os serviços saudáveis, após subir os serviços com Docker Compose conforme o [README](../README.md), prepare o produto de demonstração:
 
 ```bash
 curl -i -X POST http://localhost:8080/internal/demo/stock
