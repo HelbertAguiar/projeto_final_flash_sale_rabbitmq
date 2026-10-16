@@ -6,6 +6,8 @@ Nos blocos `bash` com `curl`, PowerShell deve usar **`curl.exe`** (evita o alias
 
 Abra http://localhost:15672, entre com `flashsale` / `flashsale`, selecione vhost `/flashsale`. Na aba **Queues and Streams**, use a fila indicada → **Get messages**, quantidade 1, **Ack mode: Nack message requeue true**. Isso permite ver o JSON e recolocá-lo na fila. Não use purge nem modo sem requeue. O contador `Consumers=0` é normal: o código busca mensagens por `basicGet` a cada segundo.
 
+Para executar a demonstração de forma automatizada, vá ao final deste arquivo.
+
 ## 1. Estoque inicial
 
 Com ambos os serviços saudáveis, após subir os serviços com Docker Compose conforme o [README](../README.md), prepare o produto de demonstração:
@@ -228,5 +230,3 @@ Se interromper o roteiro durante uma pausa, retome o serviço pausado (`docker c
 O roteiro acima permite observar cada etapa. Para uma execução automatizada sobre o ambiente dedicado já iniciado, use `bash scripts/demo-real.sh`.
 
 Para validar também recuperação, concorrência, reinício e DLQ em um projeto Compose isolado, execute `python3 scripts/test-real-flow.py`. Ele escolhe portas próprias e remove somente os recursos criados por essa execução.
-
-A demonstração sem infraestrutura externa foi preservada integralmente na branch `versao-dependencias-mockadas`, com seu próprio README e roteiro. Não há endpoints ou execução mockada nesta branch.
