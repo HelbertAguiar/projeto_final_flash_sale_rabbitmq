@@ -14,6 +14,11 @@ Projeto final de Java III — Helbert Oscar de Aguiar Silva, turma #1750, Adatec
 
 Contrato e requisitos definidos em: [especificação](especificacao-projeto-final.md).
 
+Documentação da implementação de cada microsserviço:
+
+- [Guia do Checkout Service](docs/checkout-service.md): arquivos, API, reserva atômica no Redis, outbox, Cache-Aside e compensação.
+- [Guia do Order Processor Service](docs/order-processor-service.md): arquivos, estados do pedido, consumo RabbitMQ, persistência e outbox de compensação.
+
 ## Pattern Outbox
 
 O outbox grava o evento no PostgreSQL antes de enviá-lo ao RabbitMQ, evitando perder a intenção caso o broker esteja indisponível. No Checkout, `checkout_outbox` retém o `order-created` até a reserva no Redis ficar pronta e a publicação ser confirmada; no Processor, o pedido cancelado e a compensação em `compensation_outbox` são persistidos na mesma transação e publicados posteriormente por um worker.
